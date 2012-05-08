@@ -136,16 +136,32 @@ class WkHtmlToPdfView extends View {
 	/**
 	 * @brief public interface for setting options
 	 * 
-	 * This is a basic setter method for setting options from external sources
+	 * This is a basic setter method for setting options from external sources.
+	 * 
+	 * You can pass one option like this:
+	 * 
+	 * setOption('author', 'John Smith');
+	 * 
+	 * Or multiple options like this:
+	 * 
+	 * setOption(array('author' => 'John Smith', 'pageSize' => 'A4'));
 	 * 
 	 * @access public
 	 * 
-	 * @param string $key Key to set
-	 * @param mixed $value Value to set
+	 * @param mixed $key Key to set
+	 * @param mixed $value Value to set (optional)
 	 * 
-	 * @return nothing
+	 * @return void
 	 */
-	public function setOption($key, $value) {
+	public function setOption($key, $value = null) {
+		if(is_array($key)) {
+			foreach($key as $keyName => $keyValue) {
+				$this->setOption($keyName, $keyValue);
+			}
+
+			return;
+		}
+
 		$this->options[$key] = $value;
 	}
 	
@@ -173,7 +189,7 @@ class WkHtmlToPdfView extends View {
 		$this->outputFile = TMP . rand() . '.html';		
 
 		if(empty($this->options['title'])) {
-			$this->options['title'] = $this->getVar('title_for_layout');
+			$this->options['title'] = $this->fetch('title');
 		}
 
 		if(!is_executable($this->options['binary'])) {
