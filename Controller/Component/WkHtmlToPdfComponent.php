@@ -20,6 +20,7 @@ class WkHtmlToPdfComponent extends Component {
 	public function startup(Controller $controller) {
 		if(isset($controller->request->params['ext']) && $controller->request->params['ext'] == 'pdf') {
 			$controller->viewClass = 'WkHtmlToPdf.WkHtmlToPdf';
+			$controller->layout = 'WkHtmlToPdf.pdf/default';
 		}
 	}
 }
