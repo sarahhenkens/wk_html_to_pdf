@@ -198,7 +198,7 @@ class WkHtmlToPdfView extends View {
 					header("Content-Type: application/octec-stream", false);
 					header("Content-Type: application/download", false);
 					header("Content-Type: application/pdf", false);
-					header('Content-Disposition: attachment; filename="' . basename($filename) . '";');
+					header('Content-Disposition: attachment; filename="' . basename($filename) . '.pdf";');
 					header("Content-Transfer-Encoding: binary");
 					header("Content-Length " . mb_strlen($this->output));
 				} 
