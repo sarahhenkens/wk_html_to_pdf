@@ -2,8 +2,14 @@
 
 App::uses('View', 'View');
 App::uses('CakeRequest', 'Network');
+App::uses('String', 'Utility');
+App::uses('Folder', 'Utility');
+App::uses('File', 'Utility');
 
 class WkHtmlToPdfView extends View {
+
+	protected $sourceFile = null;
+
 	/**
 	 * @brief the default options for WkHtmlToPdf View class
 	 * 
@@ -16,7 +22,7 @@ class WkHtmlToPdfView extends View {
 		'orientation' => 'Portrait',
 		'pageSize' => 'A4',
 		'mode' => 'download',
-		'filename' => 'output',
+		'filename' => 'output.pdf',
 		'binary' => '/usr/bin/wkhtmltopdf',
 		'copies' => 1,
 		'toc' => false,
@@ -44,9 +50,9 @@ class WkHtmlToPdfView extends View {
 	 * @return mixed 
 	 */
 	public function render($action = null, $layout = null, $file = null) {
-		$renderedTemplate = parent::render($action, $layout, $file);
+		parent::render($action, $layout, $file);
 
-		$this->outputFile = TMP . rand() . '.html';		
+		$this->_prepare();
 
 		if(empty($this->options['title'])) {
 			$this->options['title'] = $this->fetch('title');
@@ -61,64 +67,58 @@ class WkHtmlToPdfView extends View {
 		}
 
 		$filename = $this->options['filename'];
+
+		$rawData = $this->_renderPdf();
+
 		switch($this->options['mode']) {
 			case 'download':
-				if(!headers_sent()) {
-					$this->output = $this->__renderPdf();
-					header("Content-Description: File Transfer");
-					header("Cache-Control: public; must-revalidate, max-age=0");
-					header("Pragme: public");
-					header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
-					header("Last-Modified: " . gmdate('D, d m Y H:i:s') . " GMT");
-					header("Content-Type: application/force-download");
-					header("Content-Type: application/octec-stream", false);
-					header("Content-Type: application/download", false);
-					header("Content-Type: application/pdf", false);
-					header('Content-Disposition: attachment; filename="' . basename($filename) . '.pdf";');
-					header("Content-Transfer-Encoding: binary");
-					header("Content-Length " . mb_strlen($this->output));
-				} 
-				
-				else {
-					throw new Exception("Headers already sent");
-				}
+				$this->response->type('application/pdf');
+
+				$this->response->header(array(
+					'Content-Description' => 'File Transfer',
+					'Cache-Control' => 'public; must-revalidate, max-age=0',
+					'Pragma' => 'public',
+					'Content-Transfer-Encoding' => 'binary',
+				));
+
+				$this->response->expires();
+				$this->response->modified();
+				$this->response->length(mb_strlen($rawData));
+
+				$this->response->download(pathinfo($filename, PATHINFO_BASENAME));
+
 				break;
-				
-			case 'string':
-				$this->output = $this->__renderPdf();
-				break;
-			
 			case 'embedded':
-				if(!headers_sent()) {
-					$this->output = $this->__renderPdf();
-					header("Content-type: application/pdf");
-					header("Cache-control: public, must-revalidate, max-age=0");
-					header("Pragme: public");
-					header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
-					header("Last-Modified: " . gmdate('D, d m Y H:i:s') . " GMT");
-					header("Content-Length " . mb_strlen($this->output));
-					header('Content-Disposition: inline; filename="' . basename($filename) . '";');
-				}
-				
-				else {
-					throw new Exception("Headers already sent");
-				}
+				$this->response->type('application/pdf');
+
+				$this->response->header(array(
+					'Cache-Control' => 'public; must-revalidate, max-age=0',
+					'Pragma' => 'public',
+					'Content-Disposition' => 'inline; filename="' . pathinfo($filename, PATHINFO_BASENAME) . '";'
+					
+				));
+
+				$this->response->expires();
+				$this->response->modified();
+				$this->response->length(mb_strlen($rawData));
+	
 				break;
-				
+
+			case 'string':
+				return $this->output = $rawData;
+				break;
+
 			case 'save':
-				file_put_contents($filename, $this->__renderPdf());
+				file_put_contents($filename, $rawData);
 				break;
 			
 			default:
 				throw new Exception("Mode: " . $mode . " is not supported");
 		}
 
-		$filepath = $this->outputFile;
-		if(!empty($filepath)) {
-			unlink($filepath);
-		}
+		$this->response->send();
 
-		return $this->output;
+		return $rawData;
 	}
 
 	/**
@@ -206,14 +206,12 @@ class WkHtmlToPdfView extends View {
 	/**
 	 * @brief render a pdf document from some html
 	 * 
-	 * @access private
+	 * @access protected
 	 * 
 	 * @return the data from the rendering
 	 */
-	private function __renderPdf() {
-		file_put_contents($this->outputFile, $this->output);
-
-		$content = $this->__exec(str_replace('%input%', $this->outputFile, $this->__getCommand()));
+	private function _renderPdf() {
+		$content = $this->__exec(str_replace('%input%', $this->sourceFile->pwd(), $this->__getCommand()));
 
 		if(strpos(mb_strtolower($content['stderr']), 'error')) {
 			throw new Exception("System error <pre>" . $content['stderr'] . "</pre>");
@@ -228,6 +226,26 @@ class WkHtmlToPdfView extends View {
 		}
 
 		return $content['stdout'];
+	}
+
+	/**
+	 * @brief Prepares the temporary file paths and source file with the html data
+	 * 
+	 * @access protected
+	 * 
+	 * @return void
+	 */
+	protected function _prepare() {
+		$path = TMP . 'wk_html_to_pdf' . DS;
+
+		//Make sure the folder exists
+		new Folder($path, true);
+
+		$this->sourceFile = new File($path . String::uuid() . '.html', true);
+		$this->sourceFile->write($this->output);
+		$this->sourceFile->close();
+
+		return;
 	}
 
 	/**
